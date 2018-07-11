@@ -1,0 +1,5 @@
+tensorflow-gpu
+numpy
+intervaltree
+pytest
+tensor2tensor
