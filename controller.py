@@ -19,6 +19,7 @@ import tensorflow as tf
 # I know, shouldn't import * ... todo, figure out how to use t2t's registry
 from tissue_problems_subclasses import *  
 from genic_problems_subclasses import *
+from fieldspec_problems_subclasses import *
 from custom_models import *
 
 # for previewing
