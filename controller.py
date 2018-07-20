@@ -14,6 +14,7 @@ except ImportError:
 import logging
 import numpy as np
 import tensorflow as tf
+import json
 
 # all of the following is used, just through `eval(str)`
 # I know, shouldn't import * ... todo, figure out how to use t2t's registry
@@ -228,7 +229,9 @@ def main_preview(data_dir, problem, train_dir=None, model_fn=None, weight_keys=N
 
 
 def main_train(data_dir, train_dir, model_fn, problem, times_total=10000, evaluate_every=1000, learning_rate=1e-5,
-               batch_size=32):
+               batch_size=32, params=None):
+    if params is None:
+        params = {}
     logging.info('starting training')
     eval_with = 50
     number_rounds = times_total // evaluate_every
@@ -236,8 +239,8 @@ def main_train(data_dir, train_dir, model_fn, problem, times_total=10000, evalua
     train_input_fn = input_fn(batch_size, tf.estimator.ModeKeys.TRAIN, data_dir, problem)
     dev_input_fn = input_fn(batch_size, tf.estimator.ModeKeys.EVAL, data_dir, problem)
 
-    model_params = {'learning_rate': learning_rate, 'labels_shape': problem.label_shape}
-    nn = tf.estimator.Estimator(model_fn=model_fn, params=model_params, model_dir=train_dir)
+    params.update({'learning_rate': learning_rate, 'labels_shape': problem.label_shape})
+    nn = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=train_dir)
 
     for i in range(number_rounds):
         print('training {}'.format(i))
@@ -249,7 +252,7 @@ def main_train(data_dir, train_dir, model_fn, problem, times_total=10000, evalua
 
 
 def main(data_dir, train_dir, prob_string, mode, model_string, list_only, weights, activations, fileout, total,
-         evaluate_every, log_file, log_level, n_proc, learning_rate, batch_size):
+         evaluate_every, log_file, log_level, n_proc, learning_rate, batch_size, params):
 
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
@@ -266,16 +269,20 @@ def main(data_dir, train_dir, prob_string, mode, model_string, list_only, weight
         pass
     except AttributeError:
         pass
+
+    # todo, add params to all modes, not just training
+    params = json.loads(params)
+
     if model_string is not None:
         model_fn = eval(model_string)
     else:
         model_fn = None
-    #problem = TissueExpressionAt01()
+
     if mode == 'datagen':
         main_datagen(data_dir, problem)
     elif mode == 'train':
         main_train(data_dir, train_dir, model_fn, problem, times_total=total, evaluate_every=evaluate_every,
-                   learning_rate=learning_rate, batch_size=batch_size)
+                   learning_rate=learning_rate, batch_size=batch_size, params=params)
     elif mode == 'predict':
         main_predict(data_dir, train_dir, model_fn, problem)
     elif mode == 'preview':
@@ -329,6 +336,8 @@ if __name__ == "__main__":
                             help='custom path for output .pkl file, default: {train_dir|`pwd`}/preview.pkl')
 
     optional = parser.add_argument_group('optional')
+    optional.add_argument('--params', default="{}", type=str,
+                          help="""json string of additional parameters (useful for some models), e.g. '{"filter_depth": 32}'""")
     optional.add_argument('-p', '--processes', default=1, type=int, help='n processes to start for data_generation')
     optional.add_argument('--log_level', default='info')
     optional.add_argument('--log_file', default='run.log')
@@ -353,4 +362,5 @@ if __name__ == "__main__":
     main(data_dir=args.data_dir, train_dir=args.train_dir, mode=run_mode, prob_string=args.problem,
          model_string=args.model, list_only=args.available, weights=args.weights, activations=args.activations,
          fileout=args.pickle, total=args.total, evaluate_every=args.evaluate_every, log_file=args.log_file,
-         log_level=args.log_level, n_proc=args.processes, learning_rate=args.learning_rate, batch_size=args.batch_size)
+         log_level=args.log_level, n_proc=args.processes, learning_rate=args.learning_rate, batch_size=args.batch_size,
+         params=args.params)
