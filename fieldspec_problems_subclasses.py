@@ -1,6 +1,7 @@
 from fieldspec_problems import FieldSpecProblem
+from tensor2tensor.utils import registry
 
-
+@registry.register_problem
 class FieldSpecProblemTest(FieldSpecProblem):
 
     @property

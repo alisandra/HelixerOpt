@@ -791,3 +791,51 @@ def resnet_down_by_128_n_fc(features, labels, to_predict, params=None):
     to_predict['almost'] = almost
     to_predict['pre_predictions'] = pre_predictions
     return pre_predictions, to_predict
+
+
+# auto encoders
+def autoencode_fs_01(features, labels, mode, params=None):
+    """classifier scoring for tissue problems"""
+    params = standardize_params(params)
+    to_predict = {'features': features}
+    dropout_prob = get_dropout_prob(mode, 0.8)
+    # CNN
+    conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=4, filter_depth=4,
+                                         pool_strides=2)
+    # should deconvolute back up, but todo
+    conv_out_shape = np.array(conv_out.get_shape())
+    print('conv_out_shape: {}'.format(conv_out_shape))
+    flattened = tf.reshape(conv_out, [-1] + [np.prod(conv_out_shape[1:])])
+    pre_predictions = tf.layers.dense(flattened, np.prod(params['labels_shape']))
+    pre_predictions = tf.reshape(pre_predictions, [-1] + params['labels_shape'])
+    # predictions, metrics, scoring, loss, optimization
+    estimator_spec = score_n_spec_rmse(pre_predictions, mode, labels=features, params=params, to_predict=to_predict)
+    return estimator_spec
+
+
+def autoencode_fs_02(features, labels, mode, params=None):
+    """classifier scoring for tissue problems"""
+    params = standardize_params(params)
+    to_predict = {'features': features}
+    dropout_prob = get_dropout_prob(mode, 0.8)
+    # CNN
+    conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=8, filter_depth=4,
+                                         pool_strides=2)
+
+    conv_out_shape = np.array(conv_out.get_shape())
+    print('conv_out_shape: {}'.format(conv_out_shape))
+    # a bit hackish for de-convolution, as no conv1d_transpose was available.
+    conv_out = tf.reshape(conv_out, [-1] + list(conv_out_shape[1:]) + [1])
+    deconv_out = tf.layers.conv2d_transpose(conv_out, filters=4, kernel_size=[9, 1], strides=[2, 1])
+    deconv_out = tf.layers.conv2d_transpose(deconv_out, filters=4, kernel_size=[9, 1], strides=[2, 1])
+    deconv_out_shape = np.array(deconv_out.get_shape())
+    print('deconv_out_shape: {}'.format(deconv_out_shape))
+    # should deconvolute back up, but todo
+    flattened = tf.reshape(deconv_out, [-1] + [np.prod(deconv_out_shape[1:])])
+    print('to flat or not to flat: {}'.format(flattened.get_shape()))
+    pre_predictions = tf.layers.dense(flattened, np.prod(params['labels_shape']))
+    print('pre_predictions shape{}'.format(pre_predictions.get_shape()))
+    pre_predictions = tf.reshape(pre_predictions, [-1] + params['labels_shape'])
+    # predictions, metrics, scoring, loss, optimization
+    estimator_spec = score_n_spec_rmse(pre_predictions, mode, labels=features, params=params, to_predict=to_predict)
+    return estimator_spec
