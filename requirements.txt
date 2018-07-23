@@ -3,3 +3,4 @@ numpy
 intervaltree
 pytest
 tensor2tensor
+pandas
