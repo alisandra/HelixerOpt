@@ -1,16 +1,17 @@
 __author__ = 'Alisandra Denton'
 
 from tensor2tensor.data_generators import generator_utils
-from tensor2tensor.data_generators import problem
-from genic_problems import serialize_from_numpy, DataExistsError
+from genic_problems import serialize_from_numpy
+from mod_problem import ModProblem
 
 import tensorflow as tf
 import numpy as np
 import pandas as pd
 import os
 
+
 ### FieldSpec problems ###
-class FieldSpecProblem(problem.Problem):
+class FieldSpecProblem(ModProblem):
     """Base Problem for playing with FieldSpec reflectance data and auto encoders
 
     Takes input as folder of csvs with wave_length,sample01_reflectance,sample02_reflectance,... in each row"""
@@ -24,41 +25,17 @@ class FieldSpecProblem(problem.Problem):
     def number_wavelengths(self):
         raise NotImplementedError
 
-    # other stuff
-    @property
-    def shuffle_me(self):
-        return True
-
     @property
     def num_shards(self):
         return 20
 
-    # stuff I should probably put in a parent class for all my problems
     @property
     def num_shards_dev_test(self):
         return 4
 
-    def make_meta(self, data_dir):
-        return {'labels_shape': self.label_shape}
-
     @property
     def label_shape(self):
         return [self.number_wavelengths, 1]
-
-    def setup_file_paths(self, data_dir):
-        out_files = {'train': self.training_filepaths(data_dir=data_dir, num_shards=self.num_shards,
-                                                      shuffled=not self.shuffle_me),
-                     'dev': self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test,
-                                               shuffled=not self.shuffle_me),
-                     'test': self.test_filepaths(data_dir=data_dir, num_shards=self.num_shards,
-                                                 shuffled=not self.shuffle_me)}
-        # stop if data already exists
-        finished = self.training_filepaths(data_dir=data_dir, num_shards=self.num_shards, shuffled=True)
-        finished += self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test, shuffled=True)
-        for fin in finished:
-            if os.path.exists(fin):
-                raise DataExistsError("data already exists at (at least): {}, won't overwrite".format(fin))
-        return out_files
 
     # data serializing
     def generate_data(self, data_dir, tmp_dir='/tmp/', task_id=-1):
@@ -117,7 +94,7 @@ class FieldSpecProblem(problem.Problem):
         return features, labels
 
 
-class FieldSpecLabelledProblem(problem.Problem):
+class FieldSpecLabelledProblem(ModProblem):
     """Problem for playing with FieldSpec reflectance data when it has labels
 
     Takes input as folder of csvs with all labels to the left, of all reflectance data
@@ -143,47 +120,21 @@ class FieldSpecLabelledProblem(problem.Problem):
     def number_wavelengths(self):
         raise NotImplementedError
 
-    # other stuff
-    @property
-    def shuffle_me(self):
-        return True
-
     @property
     def num_shards(self):
         return 20
 
-    # stuff I should probably put in a parent class for all my problems
     @property
     def num_shards_dev_test(self):
         return 4
-
-    def make_meta(self, data_dir):
-        return {'labels_shape': self.label_shape}
 
     @property
     def label_shape(self):
         return [self.number_wavelengths, self.number_labels]
 
-    def setup_file_paths(self, data_dir):
-        out_files = {'train': self.training_filepaths(data_dir=data_dir, num_shards=self.num_shards,
-                                                      shuffled=not self.shuffle_me),
-                     'dev': self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test,
-                                               shuffled=not self.shuffle_me),
-                     'test': self.test_filepaths(data_dir=data_dir, num_shards=self.num_shards,
-                                                 shuffled=not self.shuffle_me)}
-        # stop if data already exists
-        finished = self.training_filepaths(data_dir=data_dir, num_shards=self.num_shards, shuffled=True)
-        finished += self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test, shuffled=True)
-        for fin in finished:
-            if os.path.exists(fin):
-                raise DataExistsError("data already exists at (at least): {}, won't overwrite".format(fin))
-        return out_files
-
-
     # data serializing
     def generate_data(self, data_dir, tmp_dir='/tmp/', task_id=-1):
         out_files = self.setup_file_paths(data_dir)
-        print(out_files)
         name_fix = {'xval': 'dev', 'test': 'test', 'train': 'train'}
 
         df = pd.read_csv(self.file_in)
@@ -193,8 +144,6 @@ class FieldSpecLabelledProblem(problem.Problem):
             x_df = targ_df.iloc[:, (targ_df.shape[1] - self.number_wavelengths):]
             x_df = np.array(x_df)
             y_df = self.get_label_columns(targ_df)
-            print(targ_df['sets'])
-            print(targ_df.shape)
             self.generate_dataset(reflectance=x_df, labels=y_df, outfiles=out_files[name_fix[dat_set]])
         if self.shuffle_me:
             generator_utils.shuffle_dataset(out_files['train'] + out_files['dev'])
@@ -204,7 +153,6 @@ class FieldSpecLabelledProblem(problem.Problem):
 
     def dataset_generator(self, reflectance, labels):
         for i in range(reflectance.shape[0]):
-            print(reflectance.shape[0])
             ref_flat = serialize_from_numpy(reflectance[i, :], float)
             lab_flat = serialize_from_numpy(self.get_one_label(labels, i), float)
             yield {'inputs': ref_flat, 'targets': lab_flat}
