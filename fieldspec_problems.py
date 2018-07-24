@@ -1,8 +1,7 @@
 __author__ = 'Alisandra Denton'
 
 from tensor2tensor.data_generators import generator_utils
-from genic_problems import serialize_from_numpy
-from mod_problem import ModProblem
+from mod_problem import ModProblem, serialize_from_numpy
 
 import tensorflow as tf
 import numpy as np

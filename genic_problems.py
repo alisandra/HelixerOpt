@@ -3,7 +3,6 @@ from __future__ import division
 __author__ = 'Alisandra Denton'
 
 from tensor2tensor.data_generators import generator_utils
-from tensor2tensor.data_generators import problem
 from tensor2tensor.utils import metrics
 
 import tensorflow as tf
@@ -14,15 +13,16 @@ import os
 import intervaltree
 import copy
 import logging
-from multiprocessing import Process
+import multiprocessing as mp
 import time
 
 from dna_helpers import seq_to_row, row_to_array, fasta2seqs, padded_subseq, reverse_complement
+from mod_problem import ModProblem, serialize_from_numpy
 import gffreader
 
 
 ### gene expression problems ###
-class GeneCallingProblem(problem.Problem):
+class GeneCallingProblem(ModProblem):
     """Base Problem for gene calling/structural annotation.
 
     Transforms input .gff & .fa from one directory (with matching names) into 1-hot vectors of [C,A,T,G] for features
@@ -82,11 +82,8 @@ class GeneCallingProblem(problem.Problem):
         raise NotImplementedError
 
     @property
-    def num_shards(self):
-        return 100
-
-    @property
     def num_shards_dev_test(self):
+        # todo, at some point if I'm cleaning input data, this could go back to 10 (AKA inherit from parent)
         return self.num_shards // 3
 
     @property
@@ -107,15 +104,12 @@ class GeneCallingProblem(problem.Problem):
 
     @num_generate_tasks.setter
     def num_generate_tasks(self, n):
+        n_cpus = mp.cpu_count()
         if n < 1:
             n = 1
-        elif n > 64:
-            n = 64  # todo, replace with system nproc
+        elif n > n_cpus:
+            n = n_cpus
         self._threads = n
-
-    @property
-    def shuffle_me(self):
-        return True
 
     @property
     def evaluation_only(self):
@@ -125,42 +119,27 @@ class GeneCallingProblem(problem.Problem):
         threads = self.num_generate_tasks  # todo, dynamic
         sp_names = self.get_sp_names()
 
-        three_name_fns = [self.training_filepaths, self.dev_filepaths, self.test_filepaths]
-        three_nshards = [self.num_shards, self.num_shards_dev_test, self.num_shards_dev_test]
         three_set_names = [self.TRAIN, self.XVAL, self.TEST]
-
-        # first check if the data is there, as generator_utils won't overwrite, so it might as well stop immediately
-        finished = []
-        for fname_fn, nshards in zip(three_name_fns, three_nshards):
-            finished += fname_fn(data_dir, nshards, shuffled=True)
-
-        for fin in finished:
-            if os.path.exists(fin):
-                raise DataExistsError("data already exists at (at least): {}, won't overwrite".format(fin))
-
-        shuffled = not self.shuffle_me  # because if we don't want to shuffle it, we'll assume it is 'shuffled' (enough)
+        out_file_paths = self.setup_file_paths(data_dir)
         all_dev = self.evaluation_only
-        # and now setup actual output file names
-        three_file_lists = []
-        for fname_fn, nshards in zip(three_name_fns, three_nshards):
-            three_file_lists.append(
-                fname_fn(data_dir, nshards, shuffled=shuffled)
-            )
-        f1, f2, f3 = three_file_lists  # todo, ugly, fix...
-        paths_to_shuffle = f1 + f2 + f3  # to shuffle later
-        jobs_list = self.divvy_up_jobs(sp_names, f1, f2, f3)
+
+        paths_to_shuffle = out_file_paths['train'] + out_file_paths['dev'] + out_file_paths['test']  # todo, still ugly
+        jobs_list = self.divvy_up_jobs(sp_names,
+                                       out_file_paths['train'],
+                                       out_file_paths['dev'],
+                                       out_file_paths['test'])
         processes = []
-        for job in jobs_list:  # todo, multi threading
+        for job in jobs_list:
             logging.info("working with {}, with {} shards for train, dev, test respectively".format(
                 job[0],
                 [len(x) for x in job[1:]])
             )
             targ_sp = job[0]
-            processes.append(Process(target=self.generate_dataset,
-                                     args=(targ_sp,
-                                           job[1:],
-                                           three_set_names,
-                                           all_dev)))
+            processes.append(mp.Process(target=self.generate_dataset,
+                                        args=(targ_sp,
+                                              job[1:],
+                                              three_set_names,
+                                              all_dev)))
 
         # start a set of processes
         running = []
@@ -426,9 +405,6 @@ class GeneCallingProblem(problem.Problem):
     def eval_metrics(self):
         return [metrics.Metrics.LOG_POISSON, metrics.Metrics.R2]
 
-    def make_meta(self, data_dir):
-        return {'labels_shape': self.label_shape}
-
 
 # custom exceptions
 class NonMatchingFiles(Exception):
@@ -436,10 +412,6 @@ class NonMatchingFiles(Exception):
 
 
 class NonMatchingSequences(Exception):
-    pass
-
-
-class DataExistsError(Exception):
     pass
 
 
@@ -454,13 +426,6 @@ def make_example_dict(x, y):
         'targets': serialize_from_numpy(y)
     }
     return ex_dict
-
-
-def serialize_from_numpy(a_numpy_array, fn=float):
-    x = a_numpy_array.flatten()
-    x = list(x)
-    x = [fn(w) for w in x]
-    return x
 
 
 class MolHolder:

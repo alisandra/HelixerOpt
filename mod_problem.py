@@ -44,3 +44,10 @@ class ModProblem(problem.Problem):
 
 class DataExistsError(Exception):
     pass
+
+
+def serialize_from_numpy(a_numpy_array, fn=float):
+    x = a_numpy_array.flatten()
+    x = list(x)
+    x = [fn(w) for w in x]
+    return x

@@ -1,9 +1,8 @@
 __author__ = 'Alisandra Denton'
 
 from tensor2tensor.data_generators import generator_utils
-from tensor2tensor.data_generators import problem
 from tensor2tensor.data_generators.gene_expression import generate_shard_args
-
+from mod_problem import ModProblem
 from builtins import range
 
 import tensorflow as tf
@@ -23,7 +22,7 @@ from dna_helpers import seq_to_row, row_to_array
 
 
 ### gene expression problems ###
-class TissueExpressionProblem(problem.Problem):
+class TissueExpressionProblem(ModProblem):
     """Base Problem for tissue specific expression. That is: Gene Exp in formats that are possibly produced"""
     TRAIN = 'train'
     TEST = 'test'
@@ -67,10 +66,6 @@ class TissueExpressionProblem(problem.Problem):
         return '{}_Yinfos_{}.csv'.format(self.name, set_name)
 
     @property
-    def shuffle_me(self):
-        return True
-
-    @property
     def x_pfx(self):
         x_files = os.listdir(self.x_direc)
         x_file_pfx = os.path.commonprefix(x_files)
@@ -83,14 +78,6 @@ class TissueExpressionProblem(problem.Problem):
     @property
     def y_direc(self):
         return self.directory_in + '/y/'
-
-    @property
-    def num_shards(self):
-        return 100
-
-    @property
-    def num_shards_dev_test(self):
-        return 10
 
     @property
     def target_log1p(self):
@@ -114,8 +101,8 @@ class TissueExpressionProblem(problem.Problem):
         paths_to_shuffle = []
         processes = []
         stat_files = []
-
-        datasets = {}  # still awkward... todo: does t2t's problem not have an inherrent train/test/dev mode???
+        # todo, make use of ModProblems' setup_file_paths()
+        datasets = {}  # still awkward... todo: does t2t's problem not have an inherent train/test/dev mode???
         filepaths = [self.training_filepaths, self.test_filepaths, self.dev_filepaths]  # same sort order as SETS
         for key in TissueExpressionProblem.SETS:
             datasets[key] = [filepaths.pop(0), self.num_shards_dev_test, key]
@@ -257,6 +244,7 @@ class TissueExpressionProblem(problem.Problem):
         f_path = self.y_stats_pfx('train', data_dir) + '_stats.json'
         with open(f_path) as f:
             out = json.load(f)
+        out['label_shape'] = self.label_shape  # todo, this may be redundant, check sometime...
         return out
 
     def generate_dataset(self,
