@@ -24,6 +24,10 @@ class FieldSpecProblemLabelledTest(FieldSpecLabelledProblem):
     def number_wavelengths(self):
         return 2151
 
+    @property
+    def number_labels(self):
+        return 1
+
     def get_label_columns(self, df):
         labels = np.array(df['Condition'])
         labels[labels == 'control'] = 0

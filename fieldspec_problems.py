@@ -129,7 +129,7 @@ class FieldSpecLabelledProblem(ModProblem):
 
     @property
     def label_shape(self):
-        return [self.number_wavelengths, self.number_labels]
+        return [self.number_labels]
 
     # data serializing
     def generate_data(self, data_dir, tmp_dir='/tmp/', task_id=-1):
@@ -159,12 +159,13 @@ class FieldSpecLabelledProblem(ModProblem):
     def example_reading_spec(self):
         data_fields = {
             'inputs': tf.FixedLenFeature([self.number_wavelengths], tf.float32),
+            'targets': tf.FixedLenFeature([self.number_labels], tf.float32)
         }
         return data_fields, None  # idk what the None is a placeholder for in real t2t land
 
     def preprocess_example(self, example, mode, unused_hparams):
-        example['inputs'] = tf.reshape(example['inputs'], [self.number_wavelengths, 1])
-        # data is legit 1D this time, so not much to change
+        #example['inputs'] = tf.reshape(example['inputs'], [self.number_wavelengths, 1])
+        # target data is legit 1D this time, so not much to change
         if mode == tf.estimator.ModeKeys.TRAIN:
             # todo, linear transform on amplitude?
             # or perhaps addition of drifting baseline?
@@ -180,10 +181,7 @@ class FieldSpecLabelledProblem(ModProblem):
                                            features=data_fields)
         example = self.preprocess_example(features, mode, meta_info)
         features = example['inputs']
-        try:  # not necessarily there as potentially have a lot of unlabelled data
-            labels = example['targets']
-        except KeyError:
-            labels = example['inputs']
+        labels = example['targets']
         return features, labels
 
     # todo, needs it's own import
