@@ -78,6 +78,44 @@ def score_exp_n_train(pre_predictions, mode, labels, params=None):
         eval_metric_ops=eval_metric_ops)
 
 
+def score_sigmoid_n_train(pre_predictions, mode, labels, to_predict=None, params=None):
+    """score / train setup for (binary or multiclass) classifier"""
+    # set learning rate
+    learning_rate = params['learning_rate']
+    if to_predict is None:
+        to_predict = {}
+    # so, pre_predictions has been relu'd. Predictions needs log space
+    predictions = tf.cast(pre_predictions >= 0, tf.float32)
+
+    # In prediction mode, return predictions
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        to_predict['predictions'] = predictions
+        return tf.estimator.EstimatorSpec(
+          mode=mode,
+          predictions=to_predict)
+
+    # Calculate loss
+    loss = tf.losses.sigmoid_cross_entropy(labels, pre_predictions)
+
+    # actual optimization functions
+    optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=1e-6)
+    train_op = optimizer.minimize(
+        loss=loss, global_step=tf.train.get_global_step())
+
+    # Calculate something to help evaluating
+    eval_metric_ops = {
+        "accuracy": tf.metrics.accuracy(labels, predictions),
+        # float32 seems to be required for the pearson correlation
+        "FN": tf.metrics.false_negatives(labels, predictions),
+        "FP": tf.metrics.false_positives(labels, predictions)
+    }
+    return tf.estimator.EstimatorSpec(
+        mode=mode,
+        loss=loss,
+        train_op=train_op,
+        eval_metric_ops=eval_metric_ops)
+
+
 def score_not_poisson(pre_predictions, mode, labels, params=None):
     """score maybe finally poisson"""
     # set learning rate
@@ -847,4 +885,18 @@ def autoencode_fs_02(features, labels, mode, params=None):
     pre_predictions = tf.reshape(pre_predictions, [-1] + params['labels_shape'])
     # predictions, metrics, scoring, loss, optimization
     estimator_spec = score_n_spec_rmse(pre_predictions, mode, labels=features, params=params, to_predict=to_predict)
+    return estimator_spec
+
+
+def logistic_reg(features, labels, mode, params=None):
+    """simple logistic regression"""
+    params = standardize_params(params)
+    lab_size = np.prod(params['labels_shape'])
+    print(lab_size)
+    pre_predictions = tf.layers.dense(features, lab_size, kernel_regularizer=tf.contrib.layers.l2_regularizer(0.001))
+    print(pre_predictions.get_shape())
+    pre_predictions = tf.reshape(pre_predictions, [-1] + params['labels_shape'])
+    print(pre_predictions.get_shape())
+    to_predict = {'features': features, 'labels': labels, 'pre_predictions': pre_predictions}
+    estimator_spec = score_sigmoid_n_train(pre_predictions, mode, labels=labels, params=params, to_predict=to_predict)
     return estimator_spec
