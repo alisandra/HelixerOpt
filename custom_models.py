@@ -851,6 +851,18 @@ def autoencode_fs_01(features, labels, mode, params=None):
     return estimator_spec
 
 
+def mk_convolv_fn(n_layers=8, filter_depth=4):
+    # making this as a function, bc the example does it, and bc it somehow makes sense that things like
+    # n_layers are set for a module being imported/exported
+    # todo, make official inputs/outputs, signature
+    def model_fn(features, dropout_prob):
+        conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_layers,
+                                             filter_depth=filter_depth, pool_strides=2)
+        return conv_out, new_preds
+
+    return model_fn
+
+
 def autoencode_fs_02(features, labels, mode, params=None):
     """convolutional in, part convolutional, part dense autoencoder for fieldspec data"""
     params = standardize_params(params)
@@ -867,6 +879,9 @@ def autoencode_fs_02(features, labels, mode, params=None):
 
     dropout_prob = get_dropout_prob(mode, 0.8)
     # CNN
+    #conv_fn = mk_convolv_fn(n_layers=n_conv_layers, filter_depth=filter_depth)
+    # todo, replace with module instance
+    # todo, figure out how to get module instance back out (e.g. similar to predict method...)
     conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_conv_layers,
                                          filter_depth=filter_depth, pool_strides=2)
 
