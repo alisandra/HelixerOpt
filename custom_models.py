@@ -3,6 +3,7 @@ __author__ = 'Alisandra Denton'
 import tensorflow as tf
 import numpy as np
 from builtins import range
+import tensorflow_hub as hub
 
 
 # main models
@@ -851,16 +852,21 @@ def autoencode_fs_01(features, labels, mode, params=None):
     return estimator_spec
 
 
-def mk_convolv_fn(n_layers=8, filter_depth=4):
+# setting up spec for convolution module (downsizing half of auto encoder)
+def conv_module_fn(n_layers=8, filter_depth=4):
     # making this as a function, bc the example does it, and bc it somehow makes sense that things like
     # n_layers are set for a module being imported/exported
-    # todo, make official inputs/outputs, signature
-    def model_fn(features, dropout_prob):
-        conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_layers,
-                                             filter_depth=filter_depth, pool_strides=2)
-        return conv_out, new_preds
+    inputs = tf.placeholder(dtype=tf.float32, shape=[None, None, 1])  # batch, wavelengths, 1
+    dropout_prob = tf.placeholder(dtype=tf.float32)
 
-    return model_fn
+    conv_out, new_preds = conv1ds_w_pool(inputs, dropout_prob=dropout_prob, n_layers=n_layers,
+                                         filter_depth=filter_depth, pool_strides=2)
+    new_preds.update({'default': conv_out})
+    # sets up parameters and return
+    hub.add_signature(inputs={"inputs": inputs, "dropout_prob": dropout_prob}, outputs=new_preds)
+
+
+conv_spec = hub.create_module_spec(conv_module_fn)
 
 
 def autoencode_fs_02(features, labels, mode, params=None):
@@ -879,11 +885,18 @@ def autoencode_fs_02(features, labels, mode, params=None):
 
     dropout_prob = get_dropout_prob(mode, 0.8)
     # CNN
-    #conv_fn = mk_convolv_fn(n_layers=n_conv_layers, filter_depth=filter_depth)
+    print('f shape {}'.format(features.get_shape()))
+    conv_fn = hub.Module(conv_spec, trainable=True)#mk_convolv_fn(n_layers=n_conv_layers, filter_depth=filter_depth)
     # todo, replace with module instance
     # todo, figure out how to get module instance back out (e.g. similar to predict method...)
-    conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_conv_layers,
-                                         filter_depth=filter_depth, pool_strides=2)
+    #conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_conv_layers,
+    #                                     filter_depth=filter_depth, pool_strides=2)
+    #if 'export_module_to' in params:  # but where would I get the session from in here x_x?
+    #    conv_fn.export(pa)
+
+    outputs = conv_fn({'inputs': features, 'dropout_prob': dropout_prob})
+    print(outputs)
+    conv_out = outputs
 
     conv_out_shape = np.array(conv_out.get_shape())
     print('conv_out_shape: {}'.format(conv_out_shape))
