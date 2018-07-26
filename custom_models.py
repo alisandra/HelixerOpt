@@ -939,3 +939,27 @@ def logistic_reg(features, labels, mode, params=None):
     to_predict = {'features': features, 'labels': labels, 'pre_predictions': pre_predictions}
     estimator_spec = score_sigmoid_n_train(pre_predictions, mode, labels=labels, params=params, to_predict=to_predict)
     return estimator_spec
+
+
+def ae_logistic_reg(features, labels, mode, params=None):
+    """logistic regression but accepting input from auto-encoding module"""
+
+    lab_size = np.prod(params['labels_shape'])
+    print(lab_size)
+    params = standardize_params(params)
+
+    conv_fn = hub.Module('exported_modules/1532605010/conv_fn/', trainable=False)
+    print('before trying to run features through pre-set convolutions')
+    features = tf.reshape(features, [-1, 2151, 1])  # todo, dynamic
+    bottle_neck = conv_fn({'inputs': features, 'dropout_prob': 0})
+    bn_shape = np.array(bottle_neck.get_shape())
+    print('bottle neck shape: {}'.format(bn_shape))
+    flattened = tf.reshape(bottle_neck, [-1] + [np.prod(bn_shape[1:])])
+    print('flattened: {}'.format(flattened))
+    pre_predictions = tf.layers.dense(flattened, lab_size)
+    print(pre_predictions.get_shape())
+    pre_predictions = tf.reshape(pre_predictions, [-1] + params['labels_shape'])
+    print(pre_predictions.get_shape())
+    to_predict = {'features': features, 'labels': labels, 'pre_predictions': pre_predictions}
+    estimator_spec = score_sigmoid_n_train(pre_predictions, mode, labels=labels, params=params, to_predict=to_predict)
+    return estimator_spec
