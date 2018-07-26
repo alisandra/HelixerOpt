@@ -872,7 +872,7 @@ conv_spec = hub.create_module_spec(conv_module_fn)
 def autoencode_fs_02(features, labels, mode, params=None):
     """convolutional in, part convolutional, part dense autoencoder for fieldspec data"""
     params = standardize_params(params)
-    to_predict = {'features': features}
+
     try:
         n_conv_layers = params['n_convolutions']
     except KeyError:
@@ -885,8 +885,19 @@ def autoencode_fs_02(features, labels, mode, params=None):
 
     dropout_prob = get_dropout_prob(mode, 0.8)
     # CNN
+    # todo, this shouldn't be hard coded in this function but somehow fixed before x_x
+    if isinstance(features, dict):
+        features = features['inputs']
+        features_shape = np.array(features.get_shape())
+        print('hack in features shape: {}'.format(features_shape))
+        features = tf.reshape(features, [-1] + [features_shape[1]] + [1])
+        #features = tf.reshape(features, [-1] + list(np.array(features.get_shape())[1]) + [1])
+
+    to_predict = {'features': features}
+    print(features)
     print('f shape {}'.format(features.get_shape()))
     conv_fn = hub.Module(conv_spec, trainable=True)#mk_convolv_fn(n_layers=n_conv_layers, filter_depth=filter_depth)
+    hub.register_module_for_export(conv_fn, 'conv_fn')
     # todo, replace with module instance
     # todo, figure out how to get module instance back out (e.g. similar to predict method...)
     #conv_out, new_preds = conv1ds_w_pool(features, dropout_prob=dropout_prob, n_layers=n_conv_layers,

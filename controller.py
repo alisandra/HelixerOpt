@@ -71,6 +71,7 @@ def input_fn(batch_size, mode, data_dir, problem):
     return fn
 
 
+
 def main_datagen(data_dir, problem):
     logging.info('starting data generation')
     problem.generate_data(data_dir)
@@ -249,6 +250,8 @@ def main_train(data_dir, train_dir, model_fn, problem, times_total=10000, evalua
         print('evaluating {}'.format(i))
         nn.evaluate(input_fn=train_input_fn, steps=eval_with, name='training')
         nn.evaluate(input_fn=dev_input_fn, steps=eval_with, name='xvalidation')
+    exporter = hub.LatestModuleExporter("an_exporter", problem.serving_input_fn_mod())  # todo, what's the input_fn do here?
+    exporter.export(nn, "exported_modules", nn.latest_checkpoint())
 
 
 def main(data_dir, train_dir, prob_string, mode, model_string, list_only, weights, activations, fileout, total,

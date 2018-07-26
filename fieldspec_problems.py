@@ -2,7 +2,8 @@ __author__ = 'Alisandra Denton'
 
 from tensor2tensor.data_generators import generator_utils
 from mod_problem import ModProblem, serialize_from_numpy
-
+from tensorflow.python.ops import parsing_ops
+#from tensorflow.python.estimator.export import Serial
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -91,6 +92,24 @@ class FieldSpecProblem(ModProblem):
         except KeyError:
             labels = example['inputs']
         return features, labels
+
+    def serving_input_fn_mod(self): # w/o 'mod' exists but seems to be a) completely generic, and b) need parameter
+        """for serving export, also  (AKA?) for setting up hub export"""
+        def serving_input_fn():
+            serialized_eg = tf.placeholder(tf.string, [None], 'tensor_in')
+            receiver_tensors = {'inputs': serialized_eg}
+            feature_spec, _ = self.example_reading_spec()
+            features = parsing_ops.parse_example(serialized_eg, feature_spec)
+            #features = self.parser(features, tf.estimator.ModeKeys.PREDICT)
+            return tf.estimator.export.ServingInputReceiver(features, receiver_tensors)
+            #return self.serving_input_fn(None)
+
+        return serving_input_fn
+
+    def serving_input_receiver_fn(self):
+        feature_spec, _ = self.example_reading_spec()
+        return tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)()
+
 
 
 class FieldSpecLabelledProblem(ModProblem):
@@ -186,7 +205,6 @@ class FieldSpecLabelledProblem(ModProblem):
 
     # todo, needs it's own import
     # todo, an easy way to make subclasses to indicate from same file, which label to use
-
 
 def merge_if_wavelengths_shared(data_in):
     """merges numpy arrays in the data_in list by first column"""
