@@ -947,8 +947,12 @@ def ae_logistic_reg(features, labels, mode, params=None):
     lab_size = np.prod(params['labels_shape'])
     print(lab_size)
     params = standardize_params(params)
+    try:
+        trainable = bool(params['trainable'])
+    except KeyError:
+        trainable = False
 
-    conv_fn = hub.Module('exported_modules/1532605010/conv_fn/', trainable=False)
+    conv_fn = hub.Module('exported_modules/1532605010/conv_fn/', trainable=trainable)
     print('before trying to run features through pre-set convolutions')
     features = tf.reshape(features, [-1, 2151, 1])  # todo, dynamic
     bottle_neck = conv_fn({'inputs': features, 'dropout_prob': 0})

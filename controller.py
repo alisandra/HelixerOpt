@@ -250,8 +250,11 @@ def main_train(data_dir, train_dir, model_fn, problem, times_total=10000, evalua
         print('evaluating {}'.format(i))
         nn.evaluate(input_fn=train_input_fn, steps=eval_with, name='training')
         nn.evaluate(input_fn=dev_input_fn, steps=eval_with, name='xvalidation')
-    exporter = hub.LatestModuleExporter("an_exporter", problem.serving_input_fn_mod())  # todo, what's the input_fn do here?
-    exporter.export(nn, "exported_modules", nn.latest_checkpoint())
+    try:
+        exporter = hub.LatestModuleExporter("an_exporter", problem.serving_input_fn_mod())  # todo, what's the input_fn do here?
+        exporter.export(nn, "exported_modules", nn.latest_checkpoint())
+    except AttributeError as e:  # todo, double check attribute error
+        print('export of hub not setup: {}'.format(e))
 
 
 def main(data_dir, train_dir, prob_string, mode, model_string, list_only, weights, activations, fileout, total,
