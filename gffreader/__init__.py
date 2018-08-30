@@ -229,11 +229,15 @@ class GFFLineMrna(GFFLine):
                 raise ValueError("expected GFFLine, observed {}".format(type(x)))
 
         if not all([x.strand == self.strand for x in self.children]):
-            raise InconsistencyError("strand of all children does not match parent at {}".format(self))
+            e_str = "strand of all children does not match parent at {}".format(self)
+            logging.debug(e_str)
+            raise InconsistencyError(e_str)
 
         for alist in [self.exons, self.introns, self.exons_non_coding_bits, self.exons_coding_bits]:
             if not all([x.data == self.strand for x in alist]):
-                raise InconsistencyError("strand of TreelessInterval does not match parent at {}".format(self))
+                e_str = "strand of TreelessInterval does not match parent at {}".format(self)
+                logging.debug(e_str)
+                raise InconsistencyError(e_str)
 
         if self.strand not in ['-', '+']:
             raise ValueError("unknown strand {}".format(self.strand))
@@ -275,11 +279,11 @@ class GFFLineMrna(GFFLine):
             except CoordinateError as e:
                 # stupid, but not directly breaking things
                 if ex_before.stop == ex_after.start:
-                    pass
+                    logging.debug("Touching exons at mrna {}: {}".format(self.get_attribute('ID'), str(e)))
                 # anything else is an impossible definition of a gene, and should be investigated
                 else:
                     self.region_type = MinimalData.erroneous
-                    err_msg = "at mrna {}: {}".format(self.get_attribute('ID'), str(e))
+                    err_msg = "Imposible coordinates at mrna {}: {}".format(self.get_attribute('ID'), str(e))
                     logging.critical(err_msg)
 
     def _set_transcription_borders(self, consistency_check=True):
@@ -322,12 +326,14 @@ class GFFLineMrna(GFFLine):
                 # raise trouble-shoot able error with available types printed out, if still no cds identified
                 children_types = [x.type for x in self.children]
                 sub_exon_types = [x.type for x in exn.children]
-                raise NoCDSFoundError("no CDS identified under {}, with types {}, and sub-last-exon types {} on {}".format(
+                e_str = "no CDS identified under {}, with types {}, and sub-last-exon types {} on {}".format(
                     self.get_attribute('ID'),
                     children_types,
                     sub_exon_types,
                     self.seqid
-                ))
+                )
+                logging.debug(e_str)
+                raise NoCDSFoundError(e_str)
 
         for coding_bit in cds:
             interval = TreelessInterval(coding_bit.start, coding_bit.end + 1, coding_bit.strand)
@@ -542,16 +548,25 @@ class GFFReader:
 
     def read_gfffile(self, gfffile):
         with open(gfffile) as f:
+            i = 0
             for line in f:
                 if not line.startswith(self.comment):
                     #print(l.split('\t')[2])
-
+                    #logging.debug('line does not start with #, and is {}'.format(line))
                     gffline = GFFLine(line)  # todo, pass **kwargs to here or anything?
+                    #logging.debug('if in classes type {}'.format(gffline.type))
                     # overwrite with subclass of GFFLine if it has a type specific subclass available
                     if gffline.type in self.entry_subclasses:
+                        #logging.debug('gffline.type {}'.format(gffline.type))
                         gffline = self.entry_subclasses[gffline.type](line)  # todo, this seems ugly, better way?
 
+                    #logging.debug('before yield')
                     yield gffline
+                    #logging.debug('after yield')
+                i += 1
+                if not i % 50000:
+                    logging.debug('reading gfffile {}, passed line {}'.format(gfffile, i))
+        logging.debug('read gff file {}'.format(gfffile))
 
     def recursive_cluster(self, gfflines, dump_at=None, check_at=None, check_still_ok=None):
         if dump_at is None:
@@ -564,15 +579,22 @@ class GFFReader:
 
         check_count0 = 0
         sorter = {}
+        logging.debug('right before first pass, across gfflines, type {}'.format(gfflines))
+        i = 0
         for entry in gfflines:
             # "id" is a bit of a joke, since for categories w/o children, they aren't unique x_x
             entry_id = entry.get_attribute(self.attr_id)
             try:
                 sorter[entry_id].append(entry)
             except KeyError:
+                #logging.debug("handling key error")
                 sorter[entry_id] = [entry]
             if entry.type == check_at:
                 check_count0 += 1
+            i += 1
+            if not i % 50000:
+                logging.debug("seen {} gfflines so far".format(i))
+        logging.debug('half way through recursive cluster')
         # unfortunately one can't count on them being sorted/parents being in first, so take a second loop
         trans_splice_count = 0
         for key in sorter:

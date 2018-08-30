@@ -128,41 +128,59 @@ class GeneCallingProblem(ModProblem):
                                        out_file_paths['train'],
                                        out_file_paths['dev'],
                                        out_file_paths['test'])
-        processes = []
-        for job in jobs_list:
-            logging.info("working with {}, with {} shards for train, dev, test respectively".format(
-                job[0],
-                [len(x) for x in job[1:]])
-            )
-            targ_sp = job[0]
-            processes.append(mp.Process(target=self.generate_dataset,
-                                        args=(targ_sp,
-                                              job[1:],
-                                              three_set_names,
-                                              all_dev)))
 
-        # start a set of processes
-        running = []
-        for i in range(min(threads, len(processes))):
-            p = processes.pop()
-            p.start()
-            running.append(p)
+        # sometimes it is nice to have a non-multi threaded option
+        if threads == 1:
+            for job in jobs_list:
+                logging.info("working with {}, with {} shards for train, dev, test respectively".format(
+                    job[0],
+                    [len(x) for x in job[1:]])
+                )
+                targ_sp = job[0]
+                self.generate_dataset(targ_sp,
+                                      job[1:],
+                                      three_set_names,
+                                      all_dev)
+        else:
+            processes = []
+            for job in jobs_list:
+                logging.info("working with {}, with {} shards for train, dev, test respectively".format(
+                    job[0],
+                    [len(x) for x in job[1:]])
+                )
+                targ_sp = job[0]
+                processes.append(mp.Process(target=self.generate_dataset,
+                                            args=(targ_sp,
+                                                  job[1:],
+                                                  three_set_names,
+                                                  all_dev)))
 
-        while running:
-            time.sleep(0.5)
-            # rm finished
-            for i in range(len(running) - 1, -1, -1):
-                if not running[i].is_alive():
-                    running.pop(i)
-            # add more
-            if processes:
-                try:
-                    for i in range(threads - len(running)):
-                        p = processes.pop()
-                        p.start()
-                        running.append(p)
-                except IndexError:
-                    continue
+            # start a set of processes
+            running = []
+            for i in range(min(threads, len(processes))):
+                p = processes.pop()
+                p.start()
+                running.append(p)
+            print('processes {} started'.format(running))
+
+            while running:
+                time.sleep(90)
+                # rm finished
+                for i in range(len(running) - 1, -1, -1):
+                    if not running[i].is_alive():
+                        running.pop(i)
+                    else:
+                        print('process {} is still running'.format(i))
+                # add more
+                print('{} processes yet to start'.format(len(processes)))
+                if processes:
+                    try:
+                        for i in range(threads - len(running)):
+                            p = processes.pop()
+                            p.start()
+                            running.append(p)
+                    except IndexError:
+                        continue
 
         if self.shuffle_me:
             generator_utils.shuffle_dataset(paths_to_shuffle)
@@ -172,22 +190,24 @@ class GeneCallingProblem(ModProblem):
                          three_file_sets,
                          three_set_names,
                          all_dev=False):
-
+        logging.info("self.generate_dataset starting for targ_sp {}".format(targ_sp))
         mol_holders = self.import_files_to_mol_holders(targ_sp, all_dev=all_dev)
-
+        logging.info("mol_holders successfully imported for {}".format(targ_sp))
         for outfiles, set_name in zip(three_file_sets, three_set_names):
             generator_utils.generate_files(self.dataset_generator(set_name, mol_holders),
                                            outfiles)
+            logging.info("self.generate_dataset finished for targ_sp {}".format(targ_sp))
 
     @staticmethod
     def dataset_generator(a_set,
                           mol_holders):
-
+        logging.info("self.dataset_generator starting now for {}".format(a_set))
         for mh in mol_holders:
             for x, y in mh.generate_set(a_set):
                 ex_dict = make_example_dict(x, y)
                 # todo, test alllllll the things
                 yield ex_dict
+        logging.info("self.dataset_generator should raise stop iteration now for {}".format(a_set))
 
     def divvy_up_jobs(self, *all_files):
         n_out = min([len(x) for x in all_files])
@@ -246,10 +266,11 @@ class GeneCallingProblem(ModProblem):
             fasta_file = '{}/{}{}'.format(self.directory_in, sp, self.fasta_ending)
             gff_file = '{}/{}{}'.format(self.directory_in, sp, self.gff_ending)
 
-            logging.info('reading in fasta file {}'.format(fasta_file))
+            logging.debug('reading in fasta file {}'.format(fasta_file))
             fasta = fasta2seqs(fasta_file)
-            logging.info('reading in gff file {}'.format(gff_file))
+            logging.debug('reading in gff file {}'.format(gff_file))
             trees = load_gff_to_intervaltrees(gff_file)
+            logging.debug('finished gff file{}'.format(gff_file))
             # check if we got matching keys
             try:
                 keys_nearly_match = self.are_keys_compatible(fasta, trees, sp)
@@ -496,9 +517,11 @@ def load_gff_to_intervaltrees(gfffile, max_errors=100):
     gr = gffreader.GFFReader()
     gfflines = gr.read_gfffile(gfffile)
     try:
-        logging.info('starting clustering')
+        logging.info('starting clustering {}'.format(gfffile))
         genes = gr.recursive_cluster(gfflines)
+        logging.debug('finished clustering {}'.format(gfffile))
     except AssertionError as e:
+        logging.warning('error at {}'.format(gfffile))
         print('at {}'.format(gfffile))
         raise e
 

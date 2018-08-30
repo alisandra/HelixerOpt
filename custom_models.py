@@ -470,7 +470,7 @@ def conv1ds_w_pool(features, n_layers=5, filter_depth=256, kernel_size=9, pool_s
             conv_out = tf.layers.max_pooling1d(conv_out, pool_size=pool_strides, strides=pool_strides)
         conv_out = tf.layers.batch_normalization(conv_out)
         conv_out = tf.layers.dropout(conv_out, rate=dropout_prob)
-        print(conv_out.get_shape())
+        #print(conv_out.get_shape())
     return conv_out, to_predict
 
 
