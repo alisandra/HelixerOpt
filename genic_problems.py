@@ -13,7 +13,7 @@ import os
 import intervaltree
 import copy
 import logging
-import multiprocessing as mp
+from multiprocessing import Process #, cpu_count
 import time
 
 from dna_helpers import seq_to_row, row_to_array, fasta2seqs, padded_subseq, reverse_complement
@@ -104,7 +104,7 @@ class GeneCallingProblem(ModProblem):
 
     @num_generate_tasks.setter
     def num_generate_tasks(self, n):
-        n_cpus = mp.cpu_count()
+        n_cpus = 8 #cpu_count()
         if n < 1:
             n = 1
         elif n > n_cpus:
@@ -128,7 +128,8 @@ class GeneCallingProblem(ModProblem):
                                        out_file_paths['train'],
                                        out_file_paths['dev'],
                                        out_file_paths['test'])
-
+        for x in jobs_list:
+            print(len(x))
         # sometimes it is nice to have a non-multi threaded option
         if threads == 1:
             for job in jobs_list:
@@ -149,11 +150,11 @@ class GeneCallingProblem(ModProblem):
                     [len(x) for x in job[1:]])
                 )
                 targ_sp = job[0]
-                processes.append(mp.Process(target=self.generate_dataset,
-                                            args=(targ_sp,
-                                                  job[1:],
-                                                  three_set_names,
-                                                  all_dev)))
+                processes.append(Process(target=self.generate_dataset,
+                                         args=(targ_sp,
+                                               job[1:],
+                                               three_set_names,
+                                               all_dev)))
 
             # start a set of processes
             running = []
@@ -164,7 +165,7 @@ class GeneCallingProblem(ModProblem):
             print('processes {} started'.format(running))
 
             while running:
-                time.sleep(90)
+                time.sleep(9)
                 # rm finished
                 for i in range(len(running) - 1, -1, -1):
                     if not running[i].is_alive():
@@ -197,6 +198,21 @@ class GeneCallingProblem(ModProblem):
             generator_utils.generate_files(self.dataset_generator(set_name, mol_holders),
                                            outfiles)
             logging.info("self.generate_dataset finished for targ_sp {}".format(targ_sp))
+
+    def generate_dataset02(self, targ_sp, three_file_sets, three_set_names, all_dev=False):
+        logging.info("generate_dataset02")
+        for outfiles, set_name in zip(three_file_sets, three_set_names):
+            generator_utils.generate_files(self.gen_dummy(100000), outfiles)
+
+    @staticmethod
+    def gen_dummy(n):
+        for i in range(n):
+            try:
+                if i % 1000:
+                    raise ValueError
+            except ValueError:
+                pass
+            yield {'inputs': [0.], 'targets': [0.]}
 
     @staticmethod
     def dataset_generator(a_set,

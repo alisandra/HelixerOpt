@@ -31,11 +31,12 @@ class ModProblem(problem.Problem):
                                                       shuffled=not self.shuffle_me),
                      'dev': self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test,
                                                shuffled=not self.shuffle_me),
-                     'test': self.test_filepaths(data_dir=data_dir, num_shards=self.num_shards,
+                     'test': self.test_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test,
                                                  shuffled=not self.shuffle_me)}
         # stop if data already exists
         finished = self.training_filepaths(data_dir=data_dir, num_shards=self.num_shards, shuffled=True)
         finished += self.dev_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test, shuffled=True)
+        finished += self.test_filepaths(data_dir=data_dir, num_shards=self.num_shards_dev_test, shuffled=True)
         for fin in finished:
             if os.path.exists(fin):
                 raise DataExistsError("data already exists at (at least): {}, won't overwrite".format(fin))
