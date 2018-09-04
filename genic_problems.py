@@ -128,8 +128,6 @@ class GeneCallingProblem(ModProblem):
                                        out_file_paths['train'],
                                        out_file_paths['dev'],
                                        out_file_paths['test'])
-        for x in jobs_list:
-            print(len(x))
         # sometimes it is nice to have a non-multi threaded option
         if threads == 1:
             for job in jobs_list:
@@ -162,7 +160,6 @@ class GeneCallingProblem(ModProblem):
                 p = processes.pop()
                 p.start()
                 running.append(p)
-            print('processes {} started'.format(running))
 
             while running:
                 time.sleep(9)
@@ -170,10 +167,7 @@ class GeneCallingProblem(ModProblem):
                 for i in range(len(running) - 1, -1, -1):
                     if not running[i].is_alive():
                         running.pop(i)
-                    else:
-                        print('process {} is still running'.format(i))
                 # add more
-                print('{} processes yet to start'.format(len(processes)))
                 if processes:
                     try:
                         for i in range(threads - len(running)):

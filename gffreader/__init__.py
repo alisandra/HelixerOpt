@@ -551,20 +551,14 @@ class GFFReader:
             i = 0
             for line in f:
                 if not line.startswith(self.comment):
-                    #print(l.split('\t')[2])
-                    #logging.debug('line does not start with #, and is {}'.format(line))
                     gffline = GFFLine(line)  # todo, pass **kwargs to here or anything?
-                    #logging.debug('if in classes type {}'.format(gffline.type))
                     # overwrite with subclass of GFFLine if it has a type specific subclass available
                     if gffline.type in self.entry_subclasses:
-                        #logging.debug('gffline.type {}'.format(gffline.type))
                         gffline = self.entry_subclasses[gffline.type](line)  # todo, this seems ugly, better way?
 
-                    #logging.debug('before yield')
                     yield gffline
-                    #logging.debug('after yield')
                 i += 1
-                if not i % 50000:
+                if not i % 200000:
                     logging.debug('reading gfffile {}, passed line {}'.format(gfffile, i))
         logging.debug('read gff file {}'.format(gfffile))
 
@@ -580,7 +574,6 @@ class GFFReader:
         check_count0 = 0
         sorter = {}
         logging.debug('right before first pass, across gfflines, type {}'.format(gfflines))
-        i = 0
         for entry in gfflines:
             # "id" is a bit of a joke, since for categories w/o children, they aren't unique x_x
             entry_id = entry.get_attribute(self.attr_id)
@@ -591,9 +584,6 @@ class GFFReader:
                 sorter[entry_id] = [entry]
             if entry.type == check_at:
                 check_count0 += 1
-            i += 1
-            if not i % 50000:
-                logging.debug("seen {} gfflines so far".format(i))
         logging.debug('half way through recursive cluster')
         # unfortunately one can't count on them being sorted/parents being in first, so take a second loop
         trans_splice_count = 0
