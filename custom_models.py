@@ -866,11 +866,11 @@ def conv_module_fn(n_layers=8, filter_depth=4):
     hub.add_signature(inputs={"inputs": inputs, "dropout_prob": dropout_prob}, outputs=new_preds)
 
 
-conv_spec = hub.create_module_spec(conv_module_fn)
-
-
 def autoencode_fs_02(features, labels, mode, params=None):
     """convolutional in, part convolutional, part dense autoencoder for fieldspec data"""
+    # todo, conv_spec was previously declared outside this function, but that caused troubles...
+    # todo, test that it works here (it should)
+    conv_spec = hub.create_module_spec(conv_module_fn)
     params = standardize_params(params)
 
     try:
